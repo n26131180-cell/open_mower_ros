@@ -45,8 +45,14 @@
 #include "std_msgs/Bool.h"
 #include "std_msgs/Empty.h"
 
+//260401
+#include <std_msgs/Float32MultiArray.h>
+//260401
 ros::Publisher status_pub;
 ros::Publisher power_pub;
+//260401
+ros::Publisher uss_pub;
+//260401
 ros::Publisher emergency_pub;
 ros::Publisher actual_twist_pub;
 ros::Publisher status_left_esc_pub;
@@ -224,6 +230,18 @@ void publishStatus() {
   status_msg.ui_board_available = (last_ll_status.status_bitmask & 0b10000000) != 0;
   status_msg.mow_enabled = !(target_speed_mow == 0);
 
+  //260401
+  std_msgs::Float32MultiArray uss_msg;
+  uss_msg.data.resize(5);
+  for (int i = 0; i < 5; i++) {
+    //uss_msg.data[i] = last_ll_status.uss_ranges_m[i];
+    //test 260402
+    uss_msg.data[i] = i+50;
+    //test 260402
+  }
+  uss_pub.publish(uss_msg);
+
+  //260401
   // overwrite emergency with the LL value.
   emergency_low_level = last_ll_status.emergency_bitmask > 0;
   active_low_level_emergency = last_ll_status.emergency_bitmask & 0xFE;
@@ -766,6 +784,9 @@ int main(int argc, char** argv) {
   status_pub = n.advertise<mower_msgs::Status>("ll/mower_status", 1);
   sensor_imu_pub = n.advertise<sensor_msgs::Imu>("ll/imu/data_raw", 1);
   power_pub = n.advertise<mower_msgs::Power>("ll/power", 1);
+  //260401
+  //uss_pub = n.advertise<std_msgs::Float32MultiArray>("ll/uss_ranges", 1);
+  //260401
 
   ros::ServiceServer mow_service = n.advertiseService("ll/_service/mow_enabled", setMowEnabled);
   ros::ServiceServer emergency_service = n.advertiseService("ll/_service/emergency", setEmergencyStop);

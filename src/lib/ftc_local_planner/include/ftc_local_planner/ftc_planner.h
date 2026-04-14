@@ -152,6 +152,9 @@ namespace ftc_local_planner
         bool isGoalReached(double dist_tolerance, double angle_tolerance) override;
 
         bool cancel() override;
+        //260402
+        void ussCallback(const std_msgs::Float32MultiArray::ConstPtr &msg);
+        //260402
     };
 };
 #endif

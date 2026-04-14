@@ -4,11 +4,29 @@
 #include <pluginlib/class_list_macros.h>
 #include "mbf_msgs/ExePathAction.h"
 
+//260401
+#include <std_msgs/Float32MultiArray.h>
+//260401
+
 PLUGINLIB_EXPORT_CLASS(ftc_local_planner::FTCPlanner, mbf_costmap_core::CostmapController)
 
 #define RET_SUCCESS 0
 #define RET_COLLISION 104
 #define RET_BLOCKED 109
+
+//260402
+ros::Subscriber uss_sub_;
+//260402
+
+//260414
+ros::Publisher uss_obstacle_pub_;
+//260414
+
+//260402
+//use for checking dustance between obstacle and mower
+float uss_front_distance_ = 999.0;  // 初始化很大
+float uss_threshold_ = 60;         // 0.5m (依你單位調整)
+//260402
 
 namespace ftc_local_planner
 {
@@ -16,6 +34,18 @@ namespace ftc_local_planner
     FTCPlanner::FTCPlanner()
     {
     }
+
+    //260402
+    void FTCPlanner::ussCallback(const std_msgs::Float32MultiArray::ConstPtr &msg)
+    {
+        if (!msg->data.empty())
+        {
+            uss_front_distance_ = msg->data[0];  //取第一個值
+        }
+    }
+    //260402
+
+    
 
     void FTCPlanner::initialize(std::string name, tf2_ros::Buffer *tf, costmap_2d::Costmap2DROS *costmap_ros)
     {
@@ -27,6 +57,9 @@ namespace ftc_local_planner
         global_point_pub = private_nh.advertise<geometry_msgs::PoseStamped>("global_point", 1);
         global_plan_pub = private_nh.advertise<nav_msgs::Path>("global_plan", 1, true);
         obstacle_marker_pub = private_nh.advertise<visualization_msgs::Marker>("costmap_marker", 10);
+        //260402
+        uss_sub_ = private_nh.subscribe("/ll/uss_obstacle_ranges", 1, &FTCPlanner::ussCallback, this);
+        //260402
 
         costmap = costmap_ros;
         costmap_map_ = costmap->getCostmap();
@@ -174,7 +207,21 @@ namespace ftc_local_planner
             cmd_vel.twist.angular.z = 0;
             return RET_SUCCESS;
         }
+        /*  
+        //260402
+        if (uss_front_distance_ < uss_threshold_)
+        {
+            cmd_vel.twist.linear.x = 0;
+            cmd_vel.twist.angular.z = 0;
 
+            ROS_WARN("Ultrasonic stop triggered");
+
+            is_crashed = true;
+            return RET_BLOCKED;   // 或 RET_COLLISION
+        }
+        //260402
+        */
+        
         // We're not crashed and not finished.
         // First, we update the control point if needed. This is needed since we need the local_control_point to calculate the next state.
         update_control_point(dt);
@@ -251,6 +298,15 @@ namespace ftc_local_planner
                 is_crashed = true;
                 return FINISHED;
             }
+
+            //260414
+            if (uss_front_distance_ < uss_threshold_)
+            {
+                ROS_WARN_STREAM("FTCLocalPlannerROS: Ultrasonic sensor detected an obstacle within threshold. distance (" << uss_front_distance_ << ") < config.uss_threshold (" << uss_threshold_ << ") It probably has crashed.");
+                is_crashed = true;
+                return FINISHED;
+            }
+            //260414
 
             // check if we're done following
             if (current_index == global_plan.size() - 2)
